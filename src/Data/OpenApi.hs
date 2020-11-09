@@ -94,6 +94,9 @@ module Data.OpenApi (
   SecurityDefinitions(..),
   SecurityRequirement(..),
 
+  -- ** Http Scheme
+  HttpScheme(..),
+
   -- *** API key
   ApiKeyParams(..),
   ApiKeyLocation(..),

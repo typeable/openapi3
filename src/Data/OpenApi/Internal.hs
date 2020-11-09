@@ -41,6 +41,7 @@ import           Network.HTTP.Media    (MediaType, mainType, parameters, parseAc
                                         (/:))
 import           Network.Socket        (HostName, PortNumber)
 import           Text.Read             (readMaybe)
+import           Test.QuickCheck.Arbitrary.Generic
 
 import           Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
@@ -774,6 +775,20 @@ data Header = Header
   , _headerSchema :: Maybe (Referenced Schema)
   } deriving (Eq, Show, Generic, Data, Typeable)
 
+-- | According to RFC7235
+data HttpScheme
+  = Basic
+  | Bearer
+  | Digest
+  | HOBA
+  | Mutual
+  | Negotiate
+  | OAuth
+  | SCRAM_SHA_1
+  | SCRAM_SHA_256
+  | Vapid
+  deriving (Eq, Show, Generic, Data, Typeable)
+
 -- | The location of the API key.
 data ApiKeyLocation
   = ApiKeyQuery
@@ -839,7 +854,7 @@ data OAuth2Flows = OAuth2Flows
   } deriving (Eq, Show, Generic, Data, Typeable)
 
 data SecuritySchemeType
-  = SecuritySchemeHttp
+  = SecuritySchemeHttp HttpScheme
   | SecuritySchemeApiKey ApiKeyParams
   | SecuritySchemeOAuth2 OAuth2Flows
   | SecuritySchemeOpenIdConnect URL
@@ -1127,6 +1142,13 @@ instance ToJSON License where
 instance ToJSON ServerVariable where
   toJSON = genericToJSON (jsonPrefix "ServerVariable")
 
+instance ToJSON HttpScheme where
+  toJSON scheme = case scheme of
+    SCRAM_SHA_1   -> "SCRAM-SHA-1"
+    SCRAM_SHA_256 -> "SCRAM-SHA-256"
+    Vapid         -> "vapid"
+    other         -> genericToJSON defaultOptions other
+
 instance ToJSON ApiKeyLocation where
   toJSON = genericToJSON (jsonPrefix "ApiKey")
 
@@ -1182,6 +1204,13 @@ instance FromJSON License where
 instance FromJSON ServerVariable where
   parseJSON = genericParseJSON (jsonPrefix "ServerVariable")
 
+instance FromJSON HttpScheme where
+  parseJSON = withText "HttpScheme" $ \txt -> case txt of
+    "SCRAM-SHA-1"   -> pure SCRAM_SHA_1
+    "SCRAM-SHA-256" -> pure SCRAM_SHA_256
+    "vapid"         -> pure Vapid
+    _               -> genericParseJSON defaultOptions $ String txt
+
 instance FromJSON ApiKeyLocation where
   parseJSON = genericParseJSON (jsonPrefix "ApiKey")
 
@@ -1229,8 +1258,8 @@ instance ToJSON OAuth2Flows where
   toEncoding = sopSwaggerGenericToEncoding
 
 instance ToJSON SecuritySchemeType where
-  toJSON SecuritySchemeHttp
-      = object [ "type" .= ("http" :: Text) ]
+  toJSON (SecuritySchemeHttp scheme)
+      = object [ "type" .= ("http" :: Text), "scheme" .= toJSON scheme ]
   toJSON (SecuritySchemeApiKey params)
       = toJSON params
     <+> object [ "type" .= ("apiKey" :: Text) ]
@@ -1379,7 +1408,7 @@ instance FromJSON SecuritySchemeType where
   parseJSON js@(Object o) = do
     (t :: Text) <- o .: "type"
     case t of
-      "http"   -> pure SecuritySchemeHttp
+      "http"   -> SecuritySchemeHttp <$> o .: "scheme"
       "apiKey" -> SecuritySchemeApiKey <$> parseJSON js
       "oauth2" -> SecuritySchemeOAuth2 <$> (o .: "flows")
       "openIdConnect" -> SecuritySchemeOpenIdConnect <$> (o .: "openIdConnectUrl")
@@ -1550,3 +1579,6 @@ instance AesonDefaultValue MimeList where defaultValue = Just mempty
 instance AesonDefaultValue Info
 instance AesonDefaultValue ParamLocation
 instance AesonDefaultValue Link
+
+instance Arbitrary HttpScheme where
+  arbitrary = genericArbitrary

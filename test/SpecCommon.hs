@@ -4,9 +4,12 @@ import Data.Aeson
 import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as HashMap
+import Data.Proxy
+import Data.Typeable
 import qualified Data.Vector as Vector
 
 import Test.Hspec
+import Test.QuickCheck (Arbitrary, property)
 
 isSubJSON :: Value -> Value -> Bool
 isSubJSON Null _ = True
@@ -28,3 +31,11 @@ x <=> js = do
     eitherDecode (encode $ toJSON x) `shouldBe` Right x
   it "roundtrips with toEncoding" $ do
     eitherDecode (toLazyByteString $ fromEncoding $ toEncoding x) `shouldBe` Right x
+
+testJsonIdempotency :: (Eq a, Show a, Arbitrary a, FromJSON a, ToJSON a, Typeable a, HasCallStack) =>
+  Proxy a -> Spec
+testJsonIdempotency px = describe (show ty) $ do
+  it "roundtrips: decode . encode" $ property $ \x ->
+    decode (encode x) == Just (x `asProxyTypeOf` px)
+  where
+    ty = typeOf $ undefined `asProxyTypeOf` px

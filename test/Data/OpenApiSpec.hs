@@ -13,9 +13,11 @@ import Data.Aeson
 import Data.Aeson.QQ.Simple
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashSet.InsOrd as InsOrdHS
+import Data.Proxy
 import Data.Text (Text)
 
 import Data.OpenApi
+import Data.OpenApi.Internal
 import SpecCommon
 import Test.Hspec hiding (example)
 
@@ -45,6 +47,7 @@ spec = do
         fromJSON petstoreExampleJSON `shouldSatisfy` (\x -> case x of Success (_ :: OpenApi) -> True; _ -> False)
       it "roundtrips: fmap toJSON . fromJSON" $ do
         (toJSON :: OpenApi -> Value) <$> fromJSON petstoreExampleJSON `shouldBe` Success petstoreExampleJSON
+  testJsonIdempotency (Proxy :: Proxy HttpScheme)
 
 main :: IO ()
 main = hspec spec
@@ -456,7 +459,10 @@ securityDefinitionsExample = SecurityDefinitions
             , _oAuth2Scopes =
                 [ ("write:pets",  "modify pets in your account")
                 , ("read:pets", "read your pets") ] } )
-      , _securitySchemeDescription = Nothing }) ]
+      , _securitySchemeDescription = Nothing })
+  , ("basic", SecurityScheme
+      { _securitySchemeType = SecuritySchemeHttp Basic
+      , _securitySchemeDescription = Nothing })]
 
 securityDefinitionsExampleJSON :: Value
 securityDefinitionsExampleJSON = [aesonQQ|
@@ -477,7 +483,11 @@ securityDefinitionsExampleJSON = [aesonQQ|
         "authorizationUrl": "http://swagger.io/api/oauth/dialog"
       }
     }
-  }
+  },
+  "basic": {
+    "type": "http",
+    "scheme": "Basic"
+    }
 }
 
 |]
